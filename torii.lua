@@ -85,13 +85,6 @@ function init()
   end
   params:add { param=note }
 
-  params:add {
-    type="control",
-    id="osc_tune",
-    name="Osc.Tune",
-    controlspec=R.specs.PulseOsc.Tune,
-    action=function(value) engine.set("Osc.Tune", value) end
-  }
 
   local lfo_frequency_spec = R.specs.MultiLFO.Frequency:copy()
   lfo_frequency_spec.default = 0.2
@@ -105,14 +98,6 @@ function init()
     action=function(value) engine.set("LFO.Frequency", value) end
   }
 
-  params:add {
-    type="control",
-    id="osc_pulsewidth",
-    name="Osc.PulseWidth",
-    controlspec=R.specs.PulseOsc.PulseWidth,
-    formatter=Formatters.percentage,
-    action=function(value) engine.set("Osc.PulseWidth", value) end
-  }
 
   local lfo_to_osc_pwm_spec = R.specs.PulseOsc.PWM:copy()
   lfo_to_osc_pwm_spec.default = 0.6
@@ -138,7 +123,7 @@ function init()
   }
 
   local env_decay_spec = R.specs.ADSREnv.Decay:copy()
-  env_decay_spec.default = 800
+  env_decay_spec.default = 400
 
   params:add {
     type="control",
@@ -158,7 +143,7 @@ function init()
   }
 
   local env_release_spec = R.specs.ADSREnv.Release:copy()
-  env_release_spec.default = 1250
+  env_release_spec.default = 500
 
   params:add {
     type="control",
