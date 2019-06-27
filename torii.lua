@@ -16,18 +16,19 @@ local R = require 'r/lib/r'
 local Option = require 'params/option'
 local Formatters = require 'formatters'
 
-local sliders = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+local sliders = {10, 0, 0, 10, 10, 0, 10, 0, 10, 0, 0, 10, 0, 10, 0, 10, 0, 10, 0, 0, 10, 0, 0, 10, 0, 0, 10, 0, 0, 10, 0, 0, 10, 0, 0, 0}
 local edit = 1
 local accum = 1
 local step = 0
+local thresh = 3
 
 local k = metro[1]
 k.count = -1
 k.time = 0.1
 k.event = function(stage)
-  step = (step + 1) % 16
+  step = (step + 1) % 32
   --print(sliders[step+1])
-  if sliders[step+1] > 1 then
+  if sliders[step+1] > thresh then
     params:set("gate", 2)
   else
     params:set("gate", 1)
@@ -35,11 +36,6 @@ k.event = function(stage)
   redraw()
 end
 
-
-local function to_hz(note)
-  local exp = (note - 21) / 12
-  return 27.5 * 2^exp
-end
 
 function init()
   engine.new("FreqGate", "FreqGate")
@@ -57,7 +53,7 @@ function init()
   --engine.connect("FreqGate/Frequency", "Osc/FM")
   engine.connect("FreqGate/Gate", "Env/Gate")
   --engine.connect("LFO/Sine", "Osc/PWM")
-  engine.connect("LFO/Sine", "FilterMod/In1")
+  --engine.connect("LFO/Sine", "FilterMod/In1")
   engine.connect("Env/Out", "FilterMod/In2")
   engine.connect("Env/Out", "Amp/Lin")
   engine.connect("FilterMod/Out", "Filter/FM")
@@ -81,7 +77,7 @@ function init()
 
   local note = Option.new("note", "Note", midi_note_list, 60)
   note.action = function(value)
-    engine.set("FreqGate.Frequency", to_hz(value))
+    --engine.set("FreqGate.Frequency", to_hz(value))
   end
   params:add { param=note }
 
@@ -98,21 +94,8 @@ function init()
     action=function(value) engine.set("LFO.Frequency", value) end
   }
 
-
-  local lfo_to_osc_pwm_spec = R.specs.PulseOsc.PWM:copy()
-  lfo_to_osc_pwm_spec.default = 0.6
-
-  params:add {
-    type="control",
-    id="lfo_to_osc_pwm",
-    name="LFO > Osc.PWM",
-    controlspec=lfo_to_osc_pwm_spec,
-    formatter=Formatters.percentage,
-    action=function(value) engine.set("Osc.PWM", value) end
-  }
-
   local env_attack_spec = R.specs.ADSREnv.Attack:copy()
-  env_attack_spec.default = 1
+  env_attack_spec.default = 0.2
 
   params:add {
     type="control",
@@ -123,7 +106,7 @@ function init()
   }
 
   local env_decay_spec = R.specs.ADSREnv.Decay:copy()
-  env_decay_spec.default = 400
+  env_decay_spec.default = 200
 
   params:add {
     type="control",
@@ -143,7 +126,7 @@ function init()
   }
 
   local env_release_spec = R.specs.ADSREnv.Release:copy()
-  env_release_spec.default = 500
+  env_release_spec.default = 10
 
   params:add {
     type="control",
@@ -212,20 +195,20 @@ function redraw()
   screen.line_width(1.0)
   screen.clear()
 
-  for i=0, 15 do
+  for i=0, 31 do
     if i == edit then
       screen.level(15)
     else
       screen.level(2)
     end
-    screen.move(32+i*4, 48)
-    screen.line(32+i*4, 46-sliders[i+1])
+    screen.move(1+i*4, 48)
+    screen.line(1+i*4, 46-sliders[i+1])
     screen.stroke()
   end
 
   screen.level(10)
-  screen.move(32+step*4, 50)
-  screen.line(32+step*4, 54)
+  screen.move(1+step*4, 50)
+  screen.line(1+step*4, 54)
   screen.stroke()
 
   screen.update()
@@ -236,7 +219,7 @@ function enc(n, delta)
   if n == 1 then
     mix:delta("output", delta)
   elseif n == 2 then
-    accum = (accum + delta) % 16
+    accum = (accum + delta) % 32
     edit = accum
   elseif n == 3 then
     sliders[edit+1] = sliders[edit+1] + delta
@@ -249,12 +232,12 @@ end
 function key(n, z)
   if n == 2 and z == 1 then
     sliders[1] = math.floor(math.random()*4)
-    for i=2, 16 do
+    for i=2, 32 do
       sliders[i] = sliders[i-1]+math.floor(math.random()*9)-3
     end
     redraw()
   elseif n == 3 and z == 1 then
-    for i=1, 16 do
+    for i=1, 32 do
       sliders[i] = sliders[i]+math.floor(math.random()*5)-2
     end
     redraw()
