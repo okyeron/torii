@@ -6,8 +6,10 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.1.1 @okyeron
+-- v0.1.2 @okyeron
 --      |||||||||||||||||||||||||||||
+--
+-- requires R engine
 
 engine.name = 'R'
 
@@ -20,31 +22,44 @@ local sliders = {}
 local edit = 1
 local accum = 1
 local step = 0
-local thresh = 1
+local thresh = 0
+local bypass = false
+
+local BeatClock = require 'beatclock'
+local clk = BeatClock.new()
+clk.steps_per_beat = 8
+clk.beats_per_bar = 8
+local clk_midi = midi.connect()
+clk_midi.event = function(data)
+  clk:process_midi(data)
+end
+
 
 local k = metro.init()
 k.count = -1
 k.time = 0.05
 k.event = function(stage)
-  step = (step + 1) % 32
-  --print(sliders[step+1])
-  if sliders[step+1] > thresh then
-    engine.set("Env.Gate", 1)
-    engine.set("FEnv.Gate", 1)
-    rndo = sliders[step+1]/100
-    --print(sliders[step+1])
-    engine.set("EnvFilter.FM", rndo)
-    --params:set("gate", 2)
-  else
-    engine.set("Env.Gate", 0)
-    engine.set("FEnv.Gate", 0)
-    --engine.set("EnvFilter.FM", 0)
-    
-    --params:set("gate", 1)
-  end
-  redraw()
 end
 
+function step_event()
+    step = (step + 1) % 32
+  --print(sliders[step+1])
+  if sliders[step+1] > thresh then
+    if bypass == false then 
+      engine.set("Env.Gate", 1)
+      engine.set("FEnv.Gate", 1)
+      rndo = sliders[step+1]/100
+      engine.set("EnvFilter.FM", rndo)
+    end
+  else
+    if bypass == false then 
+      engine.set("Env.Gate", 0)
+      engine.set("FEnv.Gate", 0)
+    end
+  end
+  redraw()
+
+end
 function randomize()
   for i=1,32 do
     sliders[i] = 0
@@ -70,7 +85,14 @@ function init()
       end
     end 
   end 
-  
+
+  clk.on_step = step_event
+--  clk.on_stop = stop
+--  clk.on_select_internal = function() clk:start() end
+--  clk.on_select_external = reset_pattern
+  clk:add_clock_params()
+  params:set("bpm", 100)
+
   engine.new("Env", "ADSREnv")
   engine.new("FEnv", "ADSREnv")
   engine.new("Filter", "MMFilter")
@@ -96,12 +118,12 @@ function init()
   --engine.connect("FilterMod/Out", "Filter/Frequency")
 
 
---  engine.connect("SoundIn/Left", "Filter/In")
---  engine.connect("SoundIn/Right", "Filter/In")
---  engine.connect("Filter/Lowpass", "Amp/In")
+  engine.connect("SoundIn/Left", "Filter/In")
+  engine.connect("SoundIn/Right", "Filter/In")
+  engine.connect("Filter/Lowpass", "EnvFilter/In")
 
-  engine.connect("SoundIn/Left", "EnvFilter/In")
-  engine.connect("SoundIn/Right", "EnvFilter/In")
+  --engine.connect("SoundIn/Left", "EnvFilter/In")
+  --engine.connect("SoundIn/Right", "EnvFilter/In")
   engine.connect("EnvFilter/Lowpass", "Amp/In")
   
   engine.connect("Env/Out", "Amp/Lin")
@@ -120,12 +142,12 @@ function init()
     midi_note_list[i] = i
   end
 
-  local gate = Option.new("gate", "Gate", {0, 1})
-  gate.action = function(value)
+--  local gate = Option.new("gate", "Gate", {0, 1})
+--  gate.action = function(value)
     --engine.set("Env.Gate", value-1)
     --engine.set("FEnv.Gate", value-1)
-  end
-  params:add { param=gate }
+--  end
+--  params:add { param=gate }
 
 --  local note = Option.new("note", "Note", midi_note_list, 60)
 --  note.action = function(value)
@@ -288,18 +310,32 @@ function init()
 
   engine.set("FilterMod.Out", 1)
   engine.set("Filter.FM", 1)
-
   engine.set("Env.Gate", 1)
   
   params:bang()
-  k:start()
+  --k:start()
+  
+  clk:start()
+  
+  -- end init
 end
 
 function redraw()
   screen.aa(1)
   screen.line_width(1.0)
   screen.clear()
+  
+    screen.move(0,62)
+    screen.text("BPM:")
+    screen.level(15)
+    screen.move(20,62)
+    screen.text(params:get("bpm")) 
 
+
+  if bypass == true then
+    screen.move(96,62)
+    screen.text('BYPASS')
+  end
   for i=0, 31 do
     if i == edit then
       screen.level(15)
@@ -309,20 +345,30 @@ function redraw()
     screen.move(1+i*4, 48)
     screen.line(1+i*4, 46-sliders[i+1]/2)
     screen.stroke()
-  end
 
+    if sliders[i+1] > 0 then
+      screen.level(15)
+    else
+      screen.level(2)
+    end
+    screen.move(1+i*4, 50)
+    screen.line(1+i*4, 54)
+    screen.stroke()
+
+  end
   screen.level(10)
   screen.move(1+step*4, 50)
   screen.line(1+step*4, 54)
   screen.stroke()
-
+  
   screen.update()
 end
 
 
 function enc(n, delta)
   if n == 1 then
-    mix:delta("output", delta)
+    --mix:delta("output", delta)
+    params:delta("bpm", delta)
   elseif n == 2 then
     accum = (accum + delta) % 32
     edit = accum
@@ -343,9 +389,16 @@ function key(n, z)
     --end
     redraw()
   elseif n == 3 and z == 1 then
-    for i=1, 32 do
-      sliders[i] = sliders[i]+math.floor(math.random()*5)-2
+    if bypass == false then
+      bypass = true
+      engine.set("Env.Gate", 1)
+    else
+      bypass = false
+      engine.set("Env.Gate", 1)
     end
+    --for i=1, 32 do
+    --  sliders[i] = sliders[i]+math.floor(math.random()*5)-2
+    --end
     redraw()
   end
 end
