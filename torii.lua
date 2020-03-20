@@ -143,7 +143,7 @@ function init()
 
   --engine.set("Osc.FM", 1)
 
-  --engine.connect("FreqGate/Frequency", "Osc/FM")
+  --engine.connect("FreqGate/Frequency", "OscFM")
   --engine.connect("FreqGate/Gate", "Env/Gate")
   --engine.connect("LFO/Sine", "Osc/PWM")
   --engine.connect("LFO/Sine", "FilterMod/In1")
@@ -456,7 +456,7 @@ function gridfromsliders()
           grid_device:led(i+1, 1, 3)
           grid_device:led(i+1, 2, 5)
           grid_device:led(i+1, 3, 7)
-       elseif sliders[i+1] <= 50 and sliders[i+1] > 33 then
+        elseif sliders[i+1] <= 50 and sliders[i+1] > 33 then
           grid_device:led(i+1, 2, 5)
           grid_device:led(i+1, 3, 7)
         elseif sliders[i+1] <= 33 and sliders[i+1] > 25 then
@@ -474,6 +474,18 @@ function gridfromsliders()
       end
       
     else
+      if sliders[i+1] > 0 then
+        if sliders[i+1] <= 100 and sliders[i+1]> 65 then
+          grid_device:led(i+1, 5, 3)
+          grid_device:led(i+1, 6, 5)
+          grid_device:led(i+1, 7, 7)
+        elseif sliders[i+1] <= 50 and sliders[i+1] > 33 then
+          grid_device:led(i+1, 6, 5)
+          grid_device:led(i+1, 7, 7)
+        elseif sliders[i+1] <= 33 and sliders[i+1] > 25 then
+          grid_device:led(i+1, 7, 7)
+        end
+      end
       
       if i == step then
         grid_device:led(i-15, 8, 15)
