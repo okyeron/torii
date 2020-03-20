@@ -6,10 +6,8 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.1.2 @okyeron
+-- v0.1.5 @okyeron
 --      |||||||||||||||||||||||||||||
---
--- requires R engine
 
 engine.name = 'R'
 
@@ -19,7 +17,7 @@ local Formatters = require 'formatters'
 local MusicUtil = require 'musicutil'
 
 local sliders = {}
-local edit = 1
+local edit = 0
 local accum = 1
 local step = 0
 local thresh = 0
@@ -33,6 +31,12 @@ local clk_midi = midi.connect()
 clk_midi.event = function(data)
   clk:process_midi(data)
 end
+
+local grds = {}
+local grid_device
+local grid_w = 0
+local grid_h = 0
+local devicepos = 1
 
 
 local k = metro.init()
@@ -58,6 +62,7 @@ function step_event()
     end
   end
   redraw()
+  gridredraw()
 
 end
 function randomize()
@@ -75,6 +80,34 @@ end
 
 function init()
   
+  -- grid connect
+  connect()
+  get_grid_names()
+  
+  -- setup grid params
+  params:add{type = "option", id = "grid_device", name = "Grid", options = grds , default = 1,
+    action = function(value)
+      grid_device:all(0)
+      grid_device:refresh()
+      grid_device.key = nil
+      --grid.cleanup()
+      grid_device = grid.connect(value)
+      grid_device.key = grid_key
+      grid.update_devices()
+      grid_dirty = true
+      grid_w = grid_device.cols
+      grid_h = grid_device.rows
+      --print (grid_w, grid_h)
+      
+      grds = {}
+      get_grid_names()
+      params.params[1].options = grds
+      
+      devicepos = value
+      print ("grid ".. devicepos .." selected " .. grds[devicepos].." "..grid_w .."x"..grid_h)
+      
+    end}
+
   for i=1,32 do
     sliders[i] = 0
     if i % 2 ~= 0 then
@@ -118,23 +151,23 @@ function init()
   --engine.connect("FilterMod/Out", "Filter/Frequency")
 
 
-  engine.connect("SoundIn/Left", "Filter/In")
-  engine.connect("SoundIn/Right", "Filter/In")
-  engine.connect("Filter/Lowpass", "EnvFilter/In")
+  engine.connect("SoundIn/Left", "Filter*In")
+  engine.connect("SoundIn/Right", "Filter*In")
+  engine.connect("Filter/Lowpass", "EnvFilter*In")
 
-  --engine.connect("SoundIn/Left", "EnvFilter/In")
-  --engine.connect("SoundIn/Right", "EnvFilter/In")
-  engine.connect("EnvFilter/Lowpass", "Amp/In")
+  --engine.connect("SoundIn/Left", "EnvFilter*In")
+  --engine.connect("SoundIn/Right", "EnvFilter*In")
+  engine.connect("EnvFilter/Lowpass", "Amp*In")
   
-  engine.connect("Env/Out", "Amp/Lin")
-  engine.connect("FEnv/Out", "EnvFilter/FM")
+  engine.connect("Env/Out", "Amp*Lin")
+  engine.connect("FEnv/Out", "EnvFilter*FM")
 
-  engine.connect("Amp/Out", "Delay/In")
-  engine.connect("Delay/Out", "SoundOut/Left")
-  engine.connect("Delay/Out", "SoundOut/Right")
+  engine.connect("Amp/Out", "Delay*In")
+  engine.connect("Delay/Out", "SoundOut*Left")
+  engine.connect("Delay/Out", "SoundOut*Right")
 
-  engine.connect("Amp/Out", "SoundOut/Left")
-  engine.connect("Amp/Out", "SoundOut/Right")
+  engine.connect("Amp/Out", "SoundOut*Left")
+  engine.connect("Amp/Out", "SoundOut*Right")
 
 
   local midi_note_list = {}
@@ -320,7 +353,145 @@ function init()
   -- end init
 end
 
+
+
+function enc(n, delta)
+  if n == 1 then
+    --mix:delta("output", delta)
+    params:delta("bpm", delta)
+  elseif n == 2 then
+    accum = (accum + delta) % 32
+    edit = accum
+  elseif n == 3 then
+    sliders[edit+1] = sliders[edit+1] + delta
+    if sliders[edit+1] > 100 then sliders[edit+1] = 100 end
+    if sliders[edit+1] < 0 then sliders[edit+1] = 0 end
+  end
+  redraw()
+  gridredraw()
+end
+
+function key(n, z)
+  if n == 2 and z == 1 then
+    randomize()
+    --sliders[1] = math.floor(math.random()*4)
+    --for i=2, 32 do
+    --  sliders[i] = sliders[i-1]+math.floor(math.random()*8)-3
+    --end
+    redraw()
+    gridredraw()
+  elseif n == 3 and z == 1 then
+    if bypass == false then
+      bypass = true
+      engine.set("Env.Gate", 1)
+    else
+      bypass = false
+      engine.set("Env.Gate", 1)
+    end
+    --for i=1, 32 do
+    --  sliders[i] = sliders[i]+math.floor(math.random()*5)-2
+    --end
+    redraw()
+    gridredraw()
+  end
+end
+
+function get_grid_names()
+  -- Get a list of grid devices
+  for id,device in pairs(grid.vports) do
+    grds[id] = device.name
+  end
+end
+
+function connect()
+  grid.update_devices()
+  grid_device = grid.connect(devicepos)
+  grid_device.key = grid_key
+  grid_device.add = on_grid_add
+  grid_device.remove = on_grid_remove
+  grid_w = grid_device.cols
+  grid_h = grid_device.rows
+end
+
+function on_grid_add(g)
+  print('on_grid_add')
+end
+
+function on_grid_remove(g)
+  print('on_grid_remove')
+end
+
+function gridredraw()
+  grid_device:all(0)
+  gridfromsliders()
+  grid_device:refresh()
+end 
+
+function grid_key(x, y, z)
+  -- 
+  if y < 5 and z == 1 then
+    if sliders[x] > 0 then
+      sliders[x] = 0
+    else
+      sliders[x] = math.floor(100/y)
+    end
+  elseif y>5 and y<9 and z == 1 then
+    if sliders[x+16] > 0 then
+      sliders[x+16] = 0
+    else
+      sliders[x+16] = math.floor(100/y)
+    end 
+  end
+
+  redraw()
+  gridredraw()
+end
+
+function gridfromsliders()
+  
+  for i=0, 31 do
+    if i < 16 then
+      if sliders[i+1] > 0 then
+        if sliders[i+1] <= 100 and sliders[i+1]> 65 then
+          grid_device:led(i+1, 1, 3)
+          grid_device:led(i+1, 2, 5)
+          grid_device:led(i+1, 3, 7)
+       elseif sliders[i+1] <= 50 and sliders[i+1] > 33 then
+          grid_device:led(i+1, 2, 5)
+          grid_device:led(i+1, 3, 7)
+        elseif sliders[i+1] <= 33 and sliders[i+1] > 25 then
+          grid_device:led(i+1, 3, 7)
+        end
+      end
+      if i == step then
+        grid_device:led(i+1, 4, 15)
+      elseif sliders[i+1] > 0 then
+        grid_device:led(i+1, 4, 10)
+      elseif i == edit then
+        grid_device:led(i+1, 4, 5)
+      else
+        grid_device:led(i+1, 4, 0)
+      end
+      
+    else
+      
+      if i == step then
+        grid_device:led(i-15, 8, 15)
+      elseif sliders[i+1] > 0 then 
+        grid_device:led(i-15, 8, 10)
+      elseif i == edit then
+        grid_device:led(i-15, 8, 5)
+      else 
+        grid_device:led(i-15, 8, 0)
+      end
+    
+    end
+    
+  end
+end
+
 function redraw()
+
   screen.aa(1)
   screen.line_width(1.0)
   screen.clear()
@@ -362,44 +533,5 @@ function redraw()
   screen.stroke()
   
   screen.update()
+ 
 end
-
-
-function enc(n, delta)
-  if n == 1 then
-    --mix:delta("output", delta)
-    params:delta("bpm", delta)
-  elseif n == 2 then
-    accum = (accum + delta) % 32
-    edit = accum
-  elseif n == 3 then
-    sliders[edit+1] = sliders[edit+1] + delta
-    if sliders[edit+1] > 100 then sliders[edit+1] = 100 end
-    if sliders[edit+1] < 0 then sliders[edit+1] = 0 end
-  end
-  redraw()
-end
-
-function key(n, z)
-  if n == 2 and z == 1 then
-    randomize()
-    --sliders[1] = math.floor(math.random()*4)
-    --for i=2, 32 do
-    --  sliders[i] = sliders[i-1]+math.floor(math.random()*8)-3
-    --end
-    redraw()
-  elseif n == 3 and z == 1 then
-    if bypass == false then
-      bypass = true
-      engine.set("Env.Gate", 1)
-    else
-      bypass = false
-      engine.set("Env.Gate", 1)
-    end
-    --for i=1, 32 do
-    --  sliders[i] = sliders[i]+math.floor(math.random()*5)-2
-    --end
-    redraw()
-  end
-end
-
