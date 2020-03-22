@@ -6,8 +6,34 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.2.5 @okyeron
---      |||||||||||||||||||||||||||||
+-- v0.2.8 @okyeron
+--
+-- |||||||||||||||||||||||||||||
+-- 
+-- Gated audio for norns
+--
+-- torii - a traditional 
+--   Japanese gate which 
+--   symbolically marks 
+--   the transition from 
+--   the mundane to the sacred
+--
+-- Requirements:
+--   audio in
+--   R library - https://github.com/antonhornquist/r
+--
+-- Grid optional
+--
+-- CONTROLS
+--
+-- K2 : randomize sequence
+-- K3 : bypass gates
+--
+-- E1 : change BPM
+-- K1 HOLD + E1 : change seq length
+-- E2 : change edit step
+-- E3 : change filter amt per step
+
 
 engine.name = 'R'
 
@@ -24,6 +50,8 @@ local accum = 1
 local step = 0
 local thresh = 0
 local bypass = false
+local key1_hold = false
+
 local default_bpm = 130
 local seq_length = 32
 
@@ -375,8 +403,13 @@ end
 
 function enc(n, delta)
   if n == 1 then
-    --mix:delta("output", delta)
-    params:delta("bpm", delta)
+    if key1_hold then
+      seq_length = util.clamp (seq_length + delta, 1, 32)  ---(seq_length + delta) % 33
+      --print (seq_length)
+    else
+      --mix:delta("output", delta)
+      params:delta("bpm", delta)
+    end
   elseif n == 2 then
     accum = (accum + delta) --% seq_length
     if accum > seq_length-1 then 
@@ -407,8 +440,6 @@ end
 function key(n, z)
   if n == 2 and z == 1 then
     randomize()
-    redraw()
-    gridredraw()
   elseif n == 3 and z == 1 then
     if bypass == false then
       bypass = true
@@ -417,10 +448,20 @@ function key(n, z)
       bypass = false
       engine.set("Env.Gate", 1)
     end
-
-    redraw()
-    gridredraw()
   end
+  if n == 1 and z == 1 then
+    if key1_hold == false then
+      key1_hold = true
+      print ('key1 hold')
+    else
+      key1_hold = false
+    end
+  elseif n == 1 and z == 0 then
+    key1_hold = false
+    print ('key1 release')
+  end
+  redraw()
+  gridredraw()
 end
 
 function get_grid_names()
@@ -462,16 +503,16 @@ function grid_key(x, y, z)
   -- 
   if y < 8 and z == 1 then
     --sliders[x] = math.floor(100 - (y-1)*16)
-    sequence[x].lev = math.floor(100 - (y-1)*16)
+    sequence[x+offset].lev = math.floor(100 - (y-1)*16)
   end
   if y == 8 and z == 1 then
     --if sliders[x] > 0 then
-    if sequence[x].on > 0 then
+    if sequence[x+offset].on > 0 then
       --sliders[x] = 0
-      sequence[x].on = 0
+      sequence[x+offset].on = 0
     else
       --sliders[x] = 100
-      sequence[x].on = 1
+      sequence[x+offset].on = 1
     end
   end
 
@@ -523,13 +564,20 @@ function redraw()
   screen.aa(1)
   screen.line_width(1.0)
   screen.clear()
-  
-  screen.move(0,62)
-  screen.text("BPM:")
   screen.level(15)
-  screen.move(20,62)
-  screen.text(params:get("bpm")) 
-
+  
+  if key1_hold then
+    screen.move(0,62)
+    screen.text("LEN:")
+    screen.move(20,62)
+    screen.text(seq_length) 
+  
+  else
+    screen.move(0,62)
+    screen.text("BPM:")
+    screen.move(20,62)
+    screen.text(params:get("bpm")) 
+  end 
   if bypass == true then
     screen.move(96,62)
     screen.text('BYPASS')
