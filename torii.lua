@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.2.0 @okyeron
+-- v0.2.2 @okyeron
 --      |||||||||||||||||||||||||||||
 
 engine.name = 'R'
@@ -430,18 +430,16 @@ end
 
 function grid_key(x, y, z)
   -- 
-  if y < 5 and z == 1 then
+  if y < 8 and z == 1 then
+    sliders[x] = math.floor(100 - (y-1)*16)
+    --print (sliders[x], (100 - sliders[x])/16 +1)
+  end
+  if y == 8 and z == 1 then
     if sliders[x] > 0 then
       sliders[x] = 0
     else
-      sliders[x] = math.floor(100/y)
+      sliders[x] = 100
     end
-  elseif y>5 and y<9 and z == 1 then
-    if sliders[x+16] > 0 then
-      sliders[x+16] = 0
-    else
-      sliders[x+16] = math.floor(100/y)
-    end 
   end
 
   redraw()
@@ -457,12 +455,12 @@ function gridfrompattern()
 
 
       if sliders[i+1+offset] > 0 then
-          for w = 1,7 do 
-            ledlev = math.floor(math.abs(((sliders[i+1+offset]/14))*w/4))
-            
-            grid_device:led(i+1, w, ledlev)
-            --print (ledlev)
+        pos = math.floor(math.abs((100 - sliders[i+1+offset])/16 +1))
+        for w = 1,7 do 
+          if pos <= w then
+            grid_device:led(i+1, w, 5)
           end
+        end
       end
 
       if i+edit == step then
