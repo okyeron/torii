@@ -24,7 +24,7 @@ local accum = 1
 local step = 0
 local thresh = 0
 local bypass = false
-local default_bpm = 10
+local default_bpm = 130
 local seq_length = 32
 
 local BeatClock = require 'beatclock'
