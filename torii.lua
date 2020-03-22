@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.2.2 @okyeron
+-- v0.2.5 @okyeron
 --      |||||||||||||||||||||||||||||
 
 engine.name = 'R'
@@ -17,6 +17,8 @@ local Formatters = require 'formatters'
 local MusicUtil = require 'musicutil'
 
 local sliders = {}
+local sequence = {}
+
 local edit = 0
 local accum = 1
 local step = 0
@@ -50,11 +52,14 @@ end
 function step_event()
     step = (step + 1) % seq_length
   --tab.print(sliders)
-  if sliders[step+1] > thresh then
+  
+  --if sliders[step+1] > thresh then
+  if sequence[step+1].lev > thresh then
     if bypass == false then 
       engine.set("Env.Gate", 1)
       engine.set("FEnv.Gate", 1)
-      rndo = sliders[step+1]/100
+      --rndo = sliders[step+1]/100
+      rndo = sequence[step+1].lev/100
       engine.set("EnvFilter.FM", rndo)
     end
   else
@@ -70,18 +75,24 @@ end
 function randomize()
   for i=1,seq_length do
     sliders[i] = 0
+    sequence[i].on = 0
+    sequence[i].lev = 0
     if i % 2 ~= 0 then
       if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
         sliders[i] = 0
+        sequence[i].on = 0
       else 
         sliders[i] = math.random(1,100)
+        sequence[i].on = 1
+        sequence[i].lev = math.random(1,100)
       end
     end 
   end 
 end 
 
+-- INIT
+
 function init()
-  
   -- grid connect
   connect()
   get_grid_names()
@@ -112,14 +123,20 @@ function init()
 
   for i=1,seq_length do
     sliders[i] = 0
+    sequence[i] = {['on']=0, ['lev']=0} 
+  
     if i % 2 ~= 0 then
       if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
         sliders[i] = 0
+        sequence[i].on = 0
       else 
         sliders[i] = math.random(1,100)
+        sequence[i].on = 1
+        sequence[i].lev = math.random(1,100)
       end
     end 
   end 
+  
 
   clk.on_step = step_event
 --  clk.on_stop = stop
@@ -210,7 +227,6 @@ function init()
       engine.set("EnvFilter.FM", value)
     end
   }
-
 
   -- FEnv.Attack
   local fenv_attack_spec = R.specs.ADSREnv.Attack:copy()
@@ -355,7 +371,7 @@ function init()
   -- end init
 end
 
-
+-- ENCODERS
 
 function enc(n, delta)
   if n == 1 then
@@ -370,13 +386,23 @@ function enc(n, delta)
     end
     edit = accum
   elseif n == 3 then
-    sliders[edit+1] = sliders[edit+1] + delta
-    if sliders[edit+1] > 100 then sliders[edit+1] = 100 end
-    if sliders[edit+1] < 0 then sliders[edit+1] = 0 end
+    --sliders[edit+1] = sliders[edit+1] + delta
+    --if sliders[edit+1] > 100 then sliders[edit+1] = 100 end
+    --if sliders[edit+1] < 0 then sliders[edit+1] = 0 end
+
+    sequence[edit+1].lev = sequence[edit+1].lev + delta
+    if sequence[edit+1].lev > 100 then sequence[edit+1].lev = 100 end
+    if sequence[edit+1].lev > 0 then sequence[edit+1].on = 1 end
+    if sequence[edit+1].lev < 0 then 
+      sequence[edit+1].lev = 0 
+      sequence[edit+1].on = 0 
+    end
   end
   redraw()
   gridredraw()
 end
+
+-- KEYS
 
 function key(n, z)
   if n == 2 and z == 1 then
@@ -422,23 +448,30 @@ function on_grid_remove(g)
   print('on_grid_remove')
 end
 
+-- GRID REDRAW
+
 function gridredraw()
   grid_device:all(0)
   gridfrompattern()
   grid_device:refresh()
 end 
 
+-- GRID KEYS
+
 function grid_key(x, y, z)
   -- 
   if y < 8 and z == 1 then
-    sliders[x] = math.floor(100 - (y-1)*16)
-    --print (sliders[x], (100 - sliders[x])/16 +1)
+    --sliders[x] = math.floor(100 - (y-1)*16)
+    sequence[x].lev = math.floor(100 - (y-1)*16)
   end
   if y == 8 and z == 1 then
-    if sliders[x] > 0 then
-      sliders[x] = 0
+    --if sliders[x] > 0 then
+    if sequence[x].on > 0 then
+      --sliders[x] = 0
+      sequence[x].on = 0
     else
-      sliders[x] = 100
+      --sliders[x] = 100
+      sequence[x].on = 1
     end
   end
 
@@ -447,25 +480,33 @@ function grid_key(x, y, z)
 end
 
 function gridfrompattern()
-  
   for i=0, 15 do -- 16 steps available on grid
       --print ("edit",edit)
       --print ("step",step)
       if edit > 16 then offset = 16 else offset = edit end
 
-
-      if sliders[i+1+offset] > 0 then
-        pos = math.floor(math.abs((100 - sliders[i+1+offset])/16 +1))
+      -- show level for each step
+      
+      --if sliders[i+1+offset] > 0 then
+      if sequence[i+1+offset].lev > 0 then  
+        --pos = math.floor(math.abs((100 - sliders[i+1+offset])/16 +1))
+        pos = math.floor(math.abs((100 - sequence[i+1+offset].lev)/16 +1))
+        if sequence[i+1+offset].on == 1 then
+          ledlev = 6
+        else
+          ledlev = 3
+        end 
         for w = 1,7 do 
           if pos <= w then
-            grid_device:led(i+1, w, 5)
+            grid_device:led(i+1, w, ledlev)
           end
         end
       end
 
       if i+edit == step then
         grid_device:led(i+1, 8, 15)
-      elseif sliders[i+1+offset] > 0 then
+      --elseif sliders[i+1+offset] > 0 then
+      elseif sequence[i+1+offset].on == 1 then
         grid_device:led(i+1, 8, 10)
       elseif i == edit then
         grid_device:led(i+1, 8, 5)
@@ -501,10 +542,12 @@ function redraw()
       screen.level(2)
     end
     screen.move(1+i*4, 48)
-    screen.line(1+i*4, 46 - math.floor(sliders[i+1]/2))
+    --screen.line(1+i*4, 46 - math.floor(sliders[i+1]/2))
+    screen.line(1+i*4, 46 - math.floor(sequence[i+1].lev/2))
     screen.stroke()
 
-    if sliders[i+1] > 0 then
+    --if sliders[i+1] > 0 then
+    if sequence[i+1].on == 1 then
       screen.level(15)
     else
       screen.level(2)
