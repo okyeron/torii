@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.1.5 @okyeron
+-- v0.2.0 @okyeron
 --      |||||||||||||||||||||||||||||
 
 engine.name = 'R'
@@ -22,6 +22,8 @@ local accum = 1
 local step = 0
 local thresh = 0
 local bypass = false
+local default_bpm = 10
+local seq_length = 32
 
 local BeatClock = require 'beatclock'
 local clk = BeatClock.new()
@@ -46,8 +48,8 @@ k.event = function(stage)
 end
 
 function step_event()
-    step = (step + 1) % 32
-  --print(sliders[step+1])
+    step = (step + 1) % seq_length
+  --tab.print(sliders)
   if sliders[step+1] > thresh then
     if bypass == false then 
       engine.set("Env.Gate", 1)
@@ -66,10 +68,10 @@ function step_event()
 
 end
 function randomize()
-  for i=1,32 do
+  for i=1,seq_length do
     sliders[i] = 0
     if i % 2 ~= 0 then
-      if i+math.random(1,32) <= i+math.random(1,32) then 
+      if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
         sliders[i] = 0
       else 
         sliders[i] = math.random(1,100)
@@ -108,10 +110,10 @@ function init()
       
     end}
 
-  for i=1,32 do
+  for i=1,seq_length do
     sliders[i] = 0
     if i % 2 ~= 0 then
-      if i+math.random(1,32) <= i+math.random(1,32) then 
+      if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
         sliders[i] = 0
       else 
         sliders[i] = math.random(1,100)
@@ -124,7 +126,7 @@ function init()
 --  clk.on_select_internal = function() clk:start() end
 --  clk.on_select_external = reset_pattern
   clk:add_clock_params()
-  params:set("bpm", 100)
+  params:set("bpm", default_bpm)
 
   engine.new("Env", "ADSREnv")
   engine.new("FEnv", "ADSREnv")
@@ -360,7 +362,12 @@ function enc(n, delta)
     --mix:delta("output", delta)
     params:delta("bpm", delta)
   elseif n == 2 then
-    accum = (accum + delta) % 32
+    accum = (accum + delta) --% seq_length
+    if accum > seq_length-1 then 
+      accum = seq_length-1
+    elseif accum < 0 then
+      accum = 0
+    end
     edit = accum
   elseif n == 3 then
     sliders[edit+1] = sliders[edit+1] + delta
@@ -374,10 +381,6 @@ end
 function key(n, z)
   if n == 2 and z == 1 then
     randomize()
-    --sliders[1] = math.floor(math.random()*4)
-    --for i=2, 32 do
-    --  sliders[i] = sliders[i-1]+math.floor(math.random()*8)-3
-    --end
     redraw()
     gridredraw()
   elseif n == 3 and z == 1 then
@@ -388,9 +391,7 @@ function key(n, z)
       bypass = false
       engine.set("Env.Gate", 1)
     end
-    --for i=1, 32 do
-    --  sliders[i] = sliders[i]+math.floor(math.random()*5)-2
-    --end
+
     redraw()
     gridredraw()
   end
@@ -423,7 +424,7 @@ end
 
 function gridredraw()
   grid_device:all(0)
-  gridfromsliders()
+  gridfrompattern()
   grid_device:refresh()
 end 
 
@@ -447,58 +448,34 @@ function grid_key(x, y, z)
   gridredraw()
 end
 
-function gridfromsliders()
+function gridfrompattern()
   
-  for i=0, 31 do
-    if i < 16 then
-      if sliders[i+1] > 0 then
-        if sliders[i+1] <= 100 and sliders[i+1]> 65 then
-          grid_device:led(i+1, 1, 3)
-          grid_device:led(i+1, 2, 5)
-          grid_device:led(i+1, 3, 7)
-        elseif sliders[i+1] <= 50 and sliders[i+1] > 33 then
-          grid_device:led(i+1, 2, 5)
-          grid_device:led(i+1, 3, 7)
-        elseif sliders[i+1] <= 33 and sliders[i+1] > 25 then
-          grid_device:led(i+1, 3, 7)
-        end
+  for i=0, 15 do -- 16 steps available on grid
+      --print ("edit",edit)
+      --print ("step",step)
+      if edit > 16 then offset = 16 else offset = edit end
+
+
+      if sliders[i+1+offset] > 0 then
+          for w = 1,7 do 
+            ledlev = math.floor(math.abs(((sliders[i+1+offset]/14))*w/4))
+            
+            grid_device:led(i+1, w, ledlev)
+            --print (ledlev)
+          end
       end
-      if i == step then
-        grid_device:led(i+1, 4, 15)
-      elseif sliders[i+1] > 0 then
-        grid_device:led(i+1, 4, 10)
+
+      if i+edit == step then
+        grid_device:led(i+1, 8, 15)
+      elseif sliders[i+1+offset] > 0 then
+        grid_device:led(i+1, 8, 10)
       elseif i == edit then
-        grid_device:led(i+1, 4, 5)
+        grid_device:led(i+1, 8, 5)
       else
-        grid_device:led(i+1, 4, 0)
+        grid_device:led(i+1, 8, 0)
       end
       
-    else
-      if sliders[i+1] > 0 then
-        if sliders[i+1] <= 100 and sliders[i+1]> 65 then
-          grid_device:led(i+1, 5, 3)
-          grid_device:led(i+1, 6, 5)
-          grid_device:led(i+1, 7, 7)
-        elseif sliders[i+1] <= 50 and sliders[i+1] > 33 then
-          grid_device:led(i+1, 6, 5)
-          grid_device:led(i+1, 7, 7)
-        elseif sliders[i+1] <= 33 and sliders[i+1] > 25 then
-          grid_device:led(i+1, 7, 7)
-        end
-      end
-      
-      if i == step then
-        grid_device:led(i-15, 8, 15)
-      elseif sliders[i+1] > 0 then 
-        grid_device:led(i-15, 8, 10)
-      elseif i == edit then
-        grid_device:led(i-15, 8, 5)
-      else 
-        grid_device:led(i-15, 8, 0)
-      end
-    
-    end
-    
+
   end
 end
 
@@ -508,25 +485,25 @@ function redraw()
   screen.line_width(1.0)
   screen.clear()
   
-    screen.move(0,62)
-    screen.text("BPM:")
-    screen.level(15)
-    screen.move(20,62)
-    screen.text(params:get("bpm")) 
-
+  screen.move(0,62)
+  screen.text("BPM:")
+  screen.level(15)
+  screen.move(20,62)
+  screen.text(params:get("bpm")) 
 
   if bypass == true then
     screen.move(96,62)
     screen.text('BYPASS')
   end
-  for i=0, 31 do
+  
+  for i=0, seq_length - 1 do
     if i == edit then
       screen.level(15)
     else
       screen.level(2)
     end
     screen.move(1+i*4, 48)
-    screen.line(1+i*4, 46-sliders[i+1]/2)
+    screen.line(1+i*4, 46 - math.floor(sliders[i+1]/2))
     screen.stroke()
 
     if sliders[i+1] > 0 then
