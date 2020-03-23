@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.2.8 @okyeron
+-- v0.3.0 @okyeron
 --
 -- |||||||||||||||||||||||||||||
 -- 
@@ -55,13 +55,25 @@ local key1_hold = false
 local default_bpm = 130
 local seq_length = 32
 
+-- BeatClock setup
 local BeatClock = require 'beatclock'
 local clk = BeatClock.new()
-clk.steps_per_beat = 8
-clk.beats_per_bar = 8
+clk.steps_per_beat = 8 -- doubling this to get 32 beats 
+clk.ticks_per_step = 3 -- halving this to keep midi clock right
+clk.beats_per_bar = 4
+--clk.send = true
+--clk.external = true
+
+current_ticks = clk.ticks_per_step - 1
+
 local clk_midi = midi.connect()
 clk_midi.event = function(data)
   clk:process_midi(data)
+
+  local d = midi.to_msg(data)
+  if d.type == "clock" then
+    -- can i get bpm from incoming clock?
+  end
 end
 
 local grds = {}
@@ -79,7 +91,6 @@ end
 
 function step_event()
     step = (step + 1) % seq_length
-  --tab.print(sliders)
   
   --if sliders[step+1] > thresh then
   if sequence[step+1].lev > thresh then
@@ -131,41 +142,35 @@ function init()
       grid_device:all(0)
       grid_device:refresh()
       grid_device.key = nil
-      --grid.cleanup()
       grid_device = grid.connect(value)
       grid_device.key = grid_key
       grid.update_devices()
       grid_dirty = true
       grid_w = grid_device.cols
       grid_h = grid_device.rows
-      --print (grid_w, grid_h)
-      
       grds = {}
       get_grid_names()
       params.params[1].options = grds
-      
       devicepos = value
       print ("grid ".. devicepos .." selected " .. grds[devicepos].." "..grid_w .."x"..grid_h)
-      
     end}
 
   for i=1,seq_length do
-    sliders[i] = 0
+    --sliders[i] = 0
     sequence[i] = {['on']=0, ['lev']=0} 
-  
     if i % 2 ~= 0 then
       if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
-        sliders[i] = 0
+        --sliders[i] = 0
         sequence[i].on = 0
       else 
-        sliders[i] = math.random(1,100)
+        --sliders[i] = math.random(1,100)
         sequence[i].on = 1
         sequence[i].lev = math.random(1,100)
       end
     end 
   end 
   
-
+  -- CLOCK
   clk.on_step = step_event
 --  clk.on_stop = stop
 --  clk.on_select_internal = function() clk:start() end
@@ -222,18 +227,6 @@ function init()
     midi_note_list[i] = i
   end
 
---  local gate = Option.new("gate", "Gate", {0, 1})
---  gate.action = function(value)
-    --engine.set("Env.Gate", value-1)
-    --engine.set("FEnv.Gate", value-1)
---  end
---  params:add { param=gate }
-
---  local note = Option.new("note", "Note", midi_note_list, 60)
---  note.action = function(value)
---    engine.set("FreqGate.Frequency", MusicUtil.note_num_to_freq(value))
---  end
---  params:add { param=note }
 
 -- EnvFilter.Frequency
   local envfilterfreq_spec = R.specs.MMFilter.Frequency:copy()
@@ -408,7 +401,11 @@ function enc(n, delta)
       --print (seq_length)
     else
       --mix:delta("output", delta)
-      params:delta("bpm", delta)
+      if clk.external then
+        
+      else
+        params:delta("bpm", delta)
+      end
     end
   elseif n == 2 then
     accum = (accum + delta) --% seq_length
@@ -576,7 +573,13 @@ function redraw()
     screen.move(0,62)
     screen.text("BPM:")
     screen.move(20,62)
-    screen.text(params:get("bpm")) 
+    
+    
+    if clk.external then
+      screen.text(clk.bpm) 
+    else
+      screen.text(params:get("bpm")) 
+    end
   end 
   if bypass == true then
     screen.move(96,62)
