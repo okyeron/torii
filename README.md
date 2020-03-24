@@ -3,7 +3,7 @@
 
 __Gated audio for norns__
 
-Alpha v0.2.8 @okyeron
+Alpha v0.3.2 @okyeron
 
 Send audio in, each step gates the audio.
 
