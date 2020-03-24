@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.3.0 @okyeron
+-- v0.3.2 @okyeron
 --
 -- |||||||||||||||||||||||||||||
 -- 
@@ -45,6 +45,8 @@ local MusicUtil = require 'musicutil'
 local sliders = {}
 local sequence = {}
 
+local default_bpm = 130
+local seq_length = 32
 local edit = 0
 local accum = 1
 local step = 0
@@ -52,11 +54,19 @@ local thresh = 0
 local bypass = false
 local key1_hold = false
 
-local default_bpm = 130
-local seq_length = 32
+-- GRID SETUP
+-- quick set of levels for grid led brightness
+local ledlevels = {1,3,5,7,10,15} 
+-- local ledlevels = {15,15,15,15,15,15} -- use this for monobright grids.
 
--- BeatClock setup
-local BeatClock = require 'beatclock'
+local grds = {}
+local grid_device
+local grid_w = 0
+local grid_h = 0
+local devicepos = 1
+
+-- BEATCLOCK setup
+local BeatClock = include('lib/t_beatclock')  -- using local version
 local clk = BeatClock.new()
 clk.steps_per_beat = 8 -- doubling this to get 32 beats 
 clk.ticks_per_step = 3 -- halving this to keep midi clock right
@@ -64,7 +74,7 @@ clk.beats_per_bar = 4
 --clk.send = true
 --clk.external = true
 
-current_ticks = clk.ticks_per_step - 1
+--current_ticks = clk.ticks_per_step - 1
 
 local clk_midi = midi.connect()
 clk_midi.event = function(data)
@@ -76,13 +86,7 @@ clk_midi.event = function(data)
   end
 end
 
-local grds = {}
-local grid_device
-local grid_w = 0
-local grid_h = 0
-local devicepos = 1
-
-
+-- IS THIS BEING USED?
 local k = metro.init()
 k.count = -1
 k.time = 0.05
@@ -136,7 +140,36 @@ function init()
   connect()
   get_grid_names()
   
+  for i=1,seq_length do
+    --sliders[i] = 0
+    sequence[i] = {['on']=0, ['lev']=0} 
+    if i % 2 ~= 0 then
+      if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
+        --sliders[i] = 0
+        sequence[i].on = 0
+      else 
+        --sliders[i] = math.random(1,100)
+        sequence[i].on = 1
+        sequence[i].lev = math.random(1,100)
+      end
+    end 
+  end 
+
+  local midi_note_list = {}
+  for i=0,127 do
+    midi_note_list[i] = i
+  end
+  
+  -- CLOCK
+  clk.on_step = step_event
+--  clk.on_stop = stop
+--  clk.on_select_internal = function() clk:start() end
+--  clk.on_select_external = reset_pattern
+  clk:add_clock_params()
+  params:set("bpm", default_bpm)
+
   -- setup grid params
+  params:add_separator("Grid")
   params:add{type = "option", id = "grid_device", name = "Grid", options = grds , default = 1,
     action = function(value)
       grid_device:all(0)
@@ -155,29 +188,8 @@ function init()
       print ("grid ".. devicepos .." selected " .. grds[devicepos].." "..grid_w .."x"..grid_h)
     end}
 
-  for i=1,seq_length do
-    --sliders[i] = 0
-    sequence[i] = {['on']=0, ['lev']=0} 
-    if i % 2 ~= 0 then
-      if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
-        --sliders[i] = 0
-        sequence[i].on = 0
-      else 
-        --sliders[i] = math.random(1,100)
-        sequence[i].on = 1
-        sequence[i].lev = math.random(1,100)
-      end
-    end 
-  end 
+  -- R Engine SETUP
   
-  -- CLOCK
-  clk.on_step = step_event
---  clk.on_stop = stop
---  clk.on_select_internal = function() clk:start() end
---  clk.on_select_external = reset_pattern
-  clk:add_clock_params()
-  params:set("bpm", default_bpm)
-
   engine.new("Env", "ADSREnv")
   engine.new("FEnv", "ADSREnv")
   engine.new("Filter", "MMFilter")
@@ -187,11 +199,10 @@ function init()
   engine.new("SoundOut", "SoundOut")
   engine.new("Delay", "Delay")
 
-
   --engine.new("FreqGate", "FreqGate")
+  --engine.new("Osc", "PulseOsc")
   engine.new("LFO", "MultiLFO")
   engine.new("FilterMod", "LinMixer")
-  --engine.new("Osc", "PulseOsc")
 
   --engine.set("Osc.FM", 1)
 
@@ -201,7 +212,6 @@ function init()
   --engine.connect("LFO/Sine", "FilterMod/In1")
   --engine.connect("Env/Out", "FilterMod/In2")
   --engine.connect("FilterMod/Out", "Filter/Frequency")
-
 
   engine.connect("SoundIn/Left", "Filter*In")
   engine.connect("SoundIn/Right", "Filter*In")
@@ -222,12 +232,8 @@ function init()
   engine.connect("Amp/Out", "SoundOut*Right")
 
 
-  local midi_note_list = {}
-  for i=0,127 do
-    midi_note_list[i] = i
-  end
-
-
+  params:add_separator("Envelopes")
+  
 -- EnvFilter.Frequency
   local envfilterfreq_spec = R.specs.MMFilter.Frequency:copy()
   envfilterfreq_spec.default = 20000
@@ -248,6 +254,7 @@ function init()
       engine.set("EnvFilter.FM", value)
     end
   }
+  params:add_group("Filter Env ADSR",4)
 
   -- FEnv.Attack
   local fenv_attack_spec = R.specs.ADSREnv.Attack:copy()
@@ -288,6 +295,7 @@ function init()
     action=function(value) engine.set("FEnv.Release", value) end
   }
 
+  params:add_group("Envelope ADSR",4)
 
   -- Env.Attack
   local env_attack_spec = R.specs.ADSREnv.Attack:copy()
@@ -328,6 +336,7 @@ function init()
     action=function(value) engine.set("Env.Release", value) end
   }
 
+  params:add_separator("Other")
   -- Delay.DelayTime
   local delay_time_spec = R.specs.Delay.DelayTime:copy()
   delay_time_spec.default = .1
@@ -402,7 +411,7 @@ function enc(n, delta)
     else
       --mix:delta("output", delta)
       if clk.external then
-        
+        -- do something with external clock?
       else
         params:delta("bpm", delta)
       end
@@ -461,6 +470,8 @@ function key(n, z)
   gridredraw()
 end
 
+-- GRID FUNCTIONS
+
 function get_grid_names()
   -- Get a list of grid devices
   for id,device in pairs(grid.vports) do
@@ -518,21 +529,21 @@ function grid_key(x, y, z)
 end
 
 function gridfrompattern()
-  for i=0, 15 do -- 16 steps available on grid
+  for i=0, grid_w-1 do -- 16 steps available on grid
       --print ("edit",edit)
       --print ("step",step)
-      if edit > 16 then offset = 16 else offset = edit end
+      if edit > grid_w then offset = grid_w else offset = edit end
 
       -- show level for each step
       
       --if sliders[i+1+offset] > 0 then
       if sequence[i+1+offset].lev > 0 then  
         --pos = math.floor(math.abs((100 - sliders[i+1+offset])/16 +1))
-        pos = math.floor(math.abs((100 - sequence[i+1+offset].lev)/16 +1))
+        pos = math.floor(math.abs((100 - sequence[i+1+offset].lev)/grid_w +1))
         if sequence[i+1+offset].on == 1 then
-          ledlev = 6
+          ledlev = ledlevels[3]
         else
-          ledlev = 3
+          ledlev = ledlevels[2]
         end 
         for w = 1,7 do 
           if pos <= w then
@@ -542,17 +553,16 @@ function gridfrompattern()
       end
 
       if i+edit == step then
-        grid_device:led(i+1, 8, 15)
+        grid_device:led(i+1, 8, ledlevels[6])
       --elseif sliders[i+1+offset] > 0 then
       elseif sequence[i+1+offset].on == 1 then
-        grid_device:led(i+1, 8, 10)
+        grid_device:led(i+1, 8, ledlevels[5])
       elseif i == edit then
-        grid_device:led(i+1, 8, 5)
+        grid_device:led(i+1, 8, ledlevels[3])
       else
         grid_device:led(i+1, 8, 0)
       end
       
-
   end
 end
 
@@ -614,5 +624,4 @@ function redraw()
   screen.stroke()
   
   screen.update()
- 
 end
