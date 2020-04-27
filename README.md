@@ -2,8 +2,7 @@
 
 *torii - a traditional Japanese gate which symbolically marks the transition from the mundane to the sacred*
 
-
-__Gated audio for norns__
+__Gated audio sequencer for norns__
 
 Alpha v0.4.0 @okyeron
 
@@ -15,7 +14,8 @@ __Requirements:__
   * audio in
   * R library - https://github.com/antonhornquist/r
 
-Grid optional  
+__Optional:__
+  * Grid
 
 
 __Controls:__  
