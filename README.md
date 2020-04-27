@@ -1,12 +1,6 @@
 # torii
 
-Gated audio for norns
-
-Alpha v0.4.0 @okyeron
-
-Send audio in, each step gates the audio.
-
-torii - a traditional Japanese gate which symbolically marks the transition from the mundane to the sacred
+~torii - a traditional Japanese gate which symbolically marks the transition from the mundane to the sacred~
 
 
 __Gated audio for norns__
