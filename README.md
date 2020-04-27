@@ -1,6 +1,6 @@
 # torii
 
-~torii - a traditional Japanese gate which symbolically marks the transition from the mundane to the sacred~
+*torii - a traditional Japanese gate which symbolically marks the transition from the mundane to the sacred*
 
 
 __Gated audio for norns__
