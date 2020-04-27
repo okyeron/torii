@@ -6,7 +6,11 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
+<<<<<<< HEAD
+-- v0.4.0 @okyeron
+=======
 -- v0.3.2 @okyeron
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
 --
 -- |||||||||||||||||||||||||||||
 -- 
@@ -19,6 +23,10 @@
 --   the mundane to the sacred
 --
 -- Requirements:
+<<<<<<< HEAD
+--   norns version 200424 (for global clock)
+=======
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
 --   audio in
 --   R library - https://github.com/antonhornquist/r
 --
@@ -45,7 +53,11 @@ local MusicUtil = require 'musicutil'
 local sliders = {}
 local sequence = {}
 
+<<<<<<< HEAD
+local default_bpm = 90
+=======
 local default_bpm = 130
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
 local seq_length = 32
 local edit = 0
 local accum = 1
@@ -53,6 +65,10 @@ local step = 0
 local thresh = 0
 local bypass = false
 local key1_hold = false
+<<<<<<< HEAD
+local running = true
+=======
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
 
 -- GRID SETUP
 -- quick set of levels for grid led brightness
@@ -65,6 +81,51 @@ local grid_w = 0
 local grid_h = 0
 local devicepos = 1
 
+<<<<<<< HEAD
+-- MIDI SETUP
+local clk_midi = midi.connect()
+clk_midi.event = function(data)
+  
+  local d = midi.to_msg(data)
+  if d.type == "clock" then
+    -- do I need to do anything midi clock now?
+  end
+  if d.type == "cc" then
+    print("ch:".. d.ch .. " " .. d.type .. ":".. d.cc.. " ".. d.val)
+    if d.cc == 1 then
+      if d.val > 64 then
+        bypass = true
+      else
+        bypass = false
+      end
+    end
+    if d.cc == 2 then
+      if d.val > 64 then
+        randomize()
+      end
+    end
+  end
+end
+
+-- CLOCK coroutines
+function pulse()
+  while true do
+    clock.sync(1/8)
+    step_event()
+  end
+end
+
+function clock.transport.start()
+  print("transport.start")
+  id = clock.run(pulse)
+  running = true
+end
+
+function clock.transport.stop()
+  print("transport.stop")
+  clock.cancel(id)
+  running = false
+=======
 -- BEATCLOCK setup
 local BeatClock = include('lib/t_beatclock')  -- using local version
 local clk = BeatClock.new()
@@ -91,6 +152,7 @@ local k = metro.init()
 k.count = -1
 k.time = 0.05
 k.event = function(stage)
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
 end
 
 function step_event()
@@ -160,6 +222,14 @@ function init()
     midi_note_list[i] = i
   end
   
+<<<<<<< HEAD
+  -- INIT CLOCK
+  --clock.run(pulse)
+  clock.transport.start()
+  
+  params:set("clock_tempo",default_bpm)
+  
+=======
   -- CLOCK
   clk.on_step = step_event
 --  clk.on_stop = stop
@@ -168,6 +238,7 @@ function init()
   clk:add_clock_params()
   params:set("bpm", default_bpm)
 
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
   -- setup grid params
   params:add_separator("Grid")
   params:add{type = "option", id = "grid_device", name = "Grid", options = grds , default = 1,
@@ -296,6 +367,7 @@ function init()
   }
 
   params:add_group("Envelope ADSR",4)
+<<<<<<< HEAD
 
   -- Env.Attack
   local env_attack_spec = R.specs.ADSREnv.Attack:copy()
@@ -321,6 +393,33 @@ function init()
   local env_sustain_spec = R.specs.ADSREnv.Sustain:copy()
   env_sustain_spec.default = .35
   params:add {
+=======
+
+  -- Env.Attack
+  local env_attack_spec = R.specs.ADSREnv.Attack:copy()
+  env_attack_spec.default = 20
+  params:add {
+    type="control", id="env_attack", name="Env.Attack",controlspec=env_attack_spec,
+    action=function(value) 
+      engine.set("Env.Attack", value)
+    end
+  }
+
+  -- Env.Decay
+  local env_decay_spec = R.specs.ADSREnv.Decay:copy()
+  env_decay_spec.default = 20
+  params:add {
+    type="control",id="env_decay",name="Env.Decay",controlspec=env_decay_spec,
+    action=function(value) 
+      engine.set("Env.Decay", value)
+    end
+  }
+
+  -- Env.Sustain
+  local env_sustain_spec = R.specs.ADSREnv.Sustain:copy()
+  env_sustain_spec.default = .35
+  params:add {
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
     type="control",id="env_sustain",name="Env.Sustain",controlspec=env_sustain_spec,
     formatter=Formatters.percentage,
     action=function(value) 
@@ -394,9 +493,12 @@ function init()
   engine.set("Env.Gate", 1)
   
   params:bang()
+<<<<<<< HEAD
+=======
   --k:start()
   
   clk:start()
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
   
   -- end init
 end
@@ -409,12 +511,16 @@ function enc(n, delta)
       seq_length = util.clamp (seq_length + delta, 1, 32)  ---(seq_length + delta) % 33
       --print (seq_length)
     else
+<<<<<<< HEAD
+      params:set("clock_tempo",clock.get_tempo()+delta)
+=======
       --mix:delta("output", delta)
       if clk.external then
         -- do something with external clock?
       else
         params:delta("bpm", delta)
       end
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
     end
   elseif n == 2 then
     accum = (accum + delta) --% seq_length
@@ -446,6 +552,14 @@ end
 function key(n, z)
   if n == 2 and z == 1 then
     randomize()
+<<<<<<< HEAD
+    --if running then 
+    --  clock.transport.stop()
+    --else
+    --  clock.transport.start()
+    --end
+=======
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
   elseif n == 3 and z == 1 then
     if bypass == false then
       bypass = true
@@ -584,12 +698,18 @@ function redraw()
     screen.text("BPM:")
     screen.move(20,62)
     
+<<<<<<< HEAD
+    tempo = util.round (clock.get_tempo(), 1)
+    screen.text(tempo) 
+
+=======
     
     if clk.external then
       screen.text(clk.bpm) 
     else
       screen.text(params:get("bpm")) 
     end
+>>>>>>> 79d3a0b81bcd35c50589beb6e9dd39159737532e
   end 
   if bypass == true then
     screen.move(96,62)
