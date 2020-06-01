@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.4.0 @okyeron
+-- v0.5.0 @okyeron
 --
 -- |||||||||||||||||||||||||||||
 -- 
@@ -67,7 +67,15 @@ local grid_w = 0
 local grid_h = 0
 local devicepos = 1
 
+local clock_default = 1/8
+local clock_divider = 1
+local clock_divided = clock_default * clock_divider
+local clock_divide_units = {4, 2, 1, 1/2, 1/4}
+local divide_options = {"1/4x", "1/2x", "1x", "2x", "4x"}
+
 -- MIDI SETUP
+-- **********
+
 local clk_midi = midi.connect()
 clk_midi.event = function(data)
   
@@ -93,9 +101,11 @@ clk_midi.event = function(data)
 end
 
 -- CLOCK coroutines
+-- **********
+
 function pulse()
   while true do
-    clock.sync(1/8)
+    clock.sync(clock_divided)
     step_event()
   end
 end
@@ -112,15 +122,17 @@ function clock.transport.stop()
   running = false
 end
 
+-- STEP EVENT
+-- **********
+
 function step_event()
-    step = (step + 1) % seq_length
+  step = (step + 1) % seq_length
   
-  --if sliders[step+1] > thresh then
-  if sequence[step+1].lev > thresh then
+  if sequence[step+1].lev > thresh and sequence[step+1].on == 1 then
     if bypass == false then 
       engine.set("Env.Gate", 1)
       engine.set("FEnv.Gate", 1)
-      --rndo = sliders[step+1]/100
+
       rndo = sequence[step+1].lev/100
       engine.set("EnvFilter.FM", rndo)
     end
@@ -134,6 +146,7 @@ function step_event()
   gridredraw()
 
 end
+
 function randomize()
   for i=1,seq_length do
     sliders[i] = 0
@@ -153,6 +166,7 @@ function randomize()
 end 
 
 -- INIT
+-- **********
 
 function init()
   -- grid connect
@@ -183,8 +197,18 @@ function init()
   --clock.run(pulse)
   clock.transport.start()
   
-  params:set("clock_tempo",default_bpm)
+  -- PARAMS
+  -- **********
+
+  params:set("clock_tempo", default_bpm)
   
+  params:add{type = "option", id = "clock_divider", name = "Clock Divider", options = divide_options, default = 3,
+    action = function(value)
+      clock_divider_idx = value
+      clock_divider = clock_divide_units[value]
+      clock_divided = clock_default * clock_divider
+  end}
+
   -- setup grid params
   params:add_separator("Grid")
   params:add{type = "option", id = "grid_device", name = "Grid", options = grds , default = 1,
@@ -206,6 +230,7 @@ function init()
     end}
 
   -- R Engine SETUP
+  -- **********
   
   engine.new("Env", "ADSREnv")
   engine.new("FEnv", "ADSREnv")
@@ -248,6 +273,8 @@ function init()
   engine.connect("Amp/Out", "SoundOut*Left")
   engine.connect("Amp/Out", "SoundOut*Right")
 
+  -- Envelopes
+  -- **********
 
   params:add_separator("Envelopes")
   
@@ -413,9 +440,11 @@ function init()
   params:bang()
   
   -- end init
+
 end
 
 -- ENCODERS
+-- **********
 
 function enc(n, delta)
   if n == 1 then
@@ -451,6 +480,7 @@ function enc(n, delta)
 end
 
 -- KEYS
+-- **********
 
 function key(n, z)
   if n == 2 and z == 1 then
@@ -485,6 +515,7 @@ function key(n, z)
 end
 
 -- GRID FUNCTIONS
+-- **********
 
 function get_grid_names()
   -- Get a list of grid devices
@@ -527,15 +558,16 @@ function grid_key(x, y, z)
     --sliders[x] = math.floor(100 - (y-1)*16)
     sequence[x+offset].lev = math.floor(100 - (y-1)*16)
   end
-  if y == 8 and z == 1 then
-    --if sliders[x] > 0 then
+
+  if y == 8 and z == 1 then -- bottom row turns on/off gates
     if sequence[x+offset].on > 0 then
-      --sliders[x] = 0
       sequence[x+offset].on = 0
     else
-      --sliders[x] = 100
       sequence[x+offset].on = 1
     end
+    -- update
+  --elseif y == 8 and z == 0 then
+    -- what happens on 0?
   end
 
   redraw()
@@ -580,6 +612,9 @@ function gridfrompattern()
   end
 end
 
+-- REDRAW
+-- **********
+
 function redraw()
 
   screen.aa(1)
@@ -598,7 +633,11 @@ function redraw()
     screen.text("BPM:")
     screen.move(20,62)
     
-    tempo = util.round (clock.get_tempo(), 1)
+    if clock_divider ~= 1 then
+      tempo = util.round (clock.get_tempo(), 1) .. " (".. divide_options[params:get("clock_divider")] ..")"
+    else
+      tempo = util.round (clock.get_tempo(), 1)
+    end
     screen.text(tempo) 
 
   end 
