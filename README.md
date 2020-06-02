@@ -4,7 +4,7 @@
 
 __Gated audio sequencer for norns__
 
-Alpha v0.4.0 @okyeron
+Alpha v0.5.1 @okyeron
 
 Send audio in, each step gates the audio.
 
@@ -37,6 +37,7 @@ __Grid controls:__
 Row 8 buttons are the sequence steps
 
 Rows 1-7 are a level amount for filter per step
+Row 7 will clear the env amount if hit while selected
 
 For sequences longer than 16, scroll the grid side to side with E2
 

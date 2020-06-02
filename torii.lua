@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.5.0 @okyeron
+-- v0.5.1 @okyeron
 --
 -- |||||||||||||||||||||||||||||
 -- 
@@ -555,9 +555,17 @@ end
 function grid_key(x, y, z)
   -- 
   if y < 8 and z == 1 then
-    --sliders[x] = math.floor(100 - (y-1)*16)
-    sequence[x+offset].lev = math.floor(100 - (y-1)*16)
+    if y == 7 then  -- row 7 disable env if on?
+      if sequence[x+offset].lev > 0 then
+        sequence[x+offset].lev = 0
+      elseif sequence[x+offset].lev == 0 then
+        sequence[x+offset].lev = math.floor(100 - (y-1)*16)
+      end 
+    else
+      sequence[x+offset].lev = math.floor(100 - (y-1)*16)
+    end
   end
+  print(sequence[x+offset].lev)
 
   if y == 8 and z == 1 then -- bottom row turns on/off gates
     if sequence[x+offset].on > 0 then
