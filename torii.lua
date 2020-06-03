@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.5.1 @okyeron
+-- v0.5.6 @okyeron
 --
 -- |||||||||||||||||||||||||||||
 -- 
@@ -80,9 +80,22 @@ local clk_midi = midi.connect()
 clk_midi.event = function(data)
   
   local d = midi.to_msg(data)
-  if d.type == "clock" then
-    -- do I need to do anything midi clock now?
-  end
+  if d.type == "start" then
+    if not running then 
+      clock.transport.reset()
+      clock.transport.start()
+    end
+  elseif d.type == "continue" then
+    if running then 
+      clock.transport.stop()
+    else 
+      clock.transport.start()
+    end
+  end 
+  if d.type == "stop" then
+    clock.transport.stop()
+  end 
+  
   if d.type == "cc" then
     print("ch:".. d.ch .. " " .. d.type .. ":".. d.cc.. " ".. d.val)
     if d.cc == 1 then
@@ -115,11 +128,14 @@ function clock.transport.start()
   id = clock.run(pulse)
   running = true
 end
-
 function clock.transport.stop()
   print("transport.stop")
   clock.cancel(id)
   running = false
+end
+function clock.transport.reset()
+  --print("transport.reset")
+  step = 0
 end
 
 -- STEP EVENT
@@ -134,7 +150,9 @@ function step_event()
       engine.set("FEnv.Gate", 1)
 
       rndo = sequence[step+1].lev/100
-      engine.set("EnvFilter.FM", rndo)
+      --print("rndo", rndo)
+      --engine.set("EnvFilter.FM", rndo)
+      params:set("envfilterfreq_spec", rndo)
     end
   else
     if bypass == false then 
@@ -201,7 +219,21 @@ function init()
   -- **********
 
   params:set("clock_tempo", default_bpm)
+
+  params:add_separator(" ")
   
+  params:add{type = "option", id = "bypass", name = "Bypass", options = {"Off", "Bypass"}, default = 1,
+    action = function(value)
+      if value == 2 then
+        bypass = true
+      else
+        bypass = false
+      end
+  end}
+  params:add{type = "trigger", id = "randomize", name = "Randomize", 
+    action = function(value) randomize() end}
+    
+
   params:add{type = "option", id = "clock_divider", name = "Clock Divider", options = divide_options, default = 3,
     action = function(value)
       clock_divider_idx = value
@@ -231,36 +263,37 @@ function init()
 
   -- R Engine SETUP
   -- **********
-  
+  engine.new("SoundIn", "SoundIn")  
   engine.new("Env", "ADSREnv")
   engine.new("FEnv", "ADSREnv")
-  engine.new("Filter", "MMFilter")
+
+  engine.new("FilterL", "LPLadder")
+  engine.new("FilterR", "LPLadder")
+
   engine.new("EnvFilter", "MMFilter")
   engine.new("Amp", "Amp")
-  engine.new("SoundIn", "SoundIn")
-  engine.new("SoundOut", "SoundOut")
   engine.new("Delay", "Delay")
 
-  --engine.new("FreqGate", "FreqGate")
-  --engine.new("Osc", "PulseOsc")
   engine.new("LFO", "MultiLFO")
   engine.new("FilterMod", "LinMixer")
+  engine.new("SoundOut", "SoundOut")
 
   --engine.set("Osc.FM", 1)
 
   --engine.connect("FreqGate/Frequency", "OscFM")
   --engine.connect("FreqGate/Gate", "Env/Gate")
   --engine.connect("LFO/Sine", "Osc/PWM")
-  --engine.connect("LFO/Sine", "FilterMod/In1")
-  --engine.connect("Env/Out", "FilterMod/In2")
-  --engine.connect("FilterMod/Out", "Filter/Frequency")
+  --engine.connect("Env/Out", "FilterMod*In2")
 
-  engine.connect("SoundIn/Left", "Filter*In")
-  engine.connect("SoundIn/Right", "Filter*In")
-  engine.connect("Filter/Lowpass", "EnvFilter*In")
+  engine.connect("SoundIn/Left", "FilterL*In")
+  engine.connect("SoundIn/Right", "FilterR*In")
+  engine.connect("FilterL/Out", "EnvFilter*In")
+  engine.connect("FilterR/Out", "EnvFilter*In")
 
-  --engine.connect("SoundIn/Left", "EnvFilter*In")
-  --engine.connect("SoundIn/Right", "EnvFilter*In")
+  engine.connect("LFO/Sine", "FilterMod*In1")
+  engine.connect("FilterMod/Out", "FilterL*FM")
+  engine.connect("FilterMod/Out", "FilterR*FM")
+
   engine.connect("EnvFilter/Lowpass", "Amp*In")
   
   engine.connect("Env/Out", "Amp*Lin")
@@ -280,7 +313,7 @@ function init()
   
 -- EnvFilter.Frequency
   local envfilterfreq_spec = R.specs.MMFilter.Frequency:copy()
-  envfilterfreq_spec.default = 20000
+  envfilterfreq_spec.default = 5000
   params:add {
     type="control", id="envfilterfreq_spec",name="EnvFilter.Frequency",controlspec=envfilterfreq_spec,
     action=function(value) 
@@ -298,6 +331,8 @@ function init()
       engine.set("EnvFilter.FM", value)
     end
   }
+  params:hide ("envfilterfreq_spec")
+
   params:add_group("Filter Env ADSR",4)
 
   -- FEnv.Attack
@@ -339,7 +374,7 @@ function init()
     action=function(value) engine.set("FEnv.Release", value) end
   }
 
-  params:add_group("Envelope ADSR",4)
+  params:add_group("Amp ADSR",4)
 
   -- Env.Attack
   local env_attack_spec = R.specs.ADSREnv.Attack:copy()
@@ -380,7 +415,7 @@ function init()
     action=function(value) engine.set("Env.Release", value) end
   }
 
-  params:add_separator("Other")
+  params:add_separator("Delay")
   -- Delay.DelayTime
   local delay_time_spec = R.specs.Delay.DelayTime:copy()
   delay_time_spec.default = .1
@@ -389,28 +424,37 @@ function init()
     action=function(value) engine.set("Delay.DelayTime", value) end
   }
 
+  params:add_separator("Ladder LP Filter")
   -- Filter.Frequency
-  local filter_frequency_spec = R.specs.MMFilter.Frequency:copy()
-  filter_frequency_spec.default = 20000
+  local cutoff_spec = R.specs.LPLadder.Frequency:copy()
+  cutoff_spec.default = 20000
+  cutoff_spec.minval = 20
+  cutoff_spec.maxval = 20000
   params:add {
-    type="control",id="filter_frequency",name="Filter.Frequency",controlspec=filter_frequency_spec,
-    action=function(value) engine.set("Filter.Frequency", value) end
+    type="control",id="cutoff",name="Cutoff",controlspec=cutoff_spec,
+    action=function(value) 
+      engine.set("FilterL.Frequency", value)
+      engine.set("FilterR.Frequency", value)
+    end
   }
 
   -- Filter.Resonance
-  local filter_resonance_spec = R.specs.MMFilter.Resonance:copy()
+  local filter_resonance_spec = R.specs.LPLadder.Resonance:copy()
   filter_resonance_spec.default = 0
   params:add {
     type="control",id="filter_resonance",name="Filter.Resonance",controlspec=filter_resonance_spec,
     formatter=Formatters.percentage,
-    action=function(value) engine.set("Filter.Resonance", value) end
+    action=function(value) 
+      engine.set("FilterL.Resonance", value) 
+      engine.set("FilterR.Resonance", value)       
+    end
   }
 
   -- LFO > Filter.FM
   local lfo_to_filter_fm_spec = R.specs.MMFilter.FM:copy()
   lfo_to_filter_fm_spec.default = 0.4
   params:add {
-    type="control",id="lfo_to_filter_fm",name="LFO > Filter.FM",controlspec=lfo_to_filter_fm_spec,
+    type="control",id="lfo_to_filter_fm",name="LFO > FilterMod",controlspec=lfo_to_filter_fm_spec,
     formatter=Formatters.percentage,
     action=function(value) engine.set("FilterMod.In1", value) end
   }
@@ -419,23 +463,26 @@ function init()
   local lfo_frequency_spec = R.specs.MultiLFO.Frequency:copy()
   lfo_frequency_spec.default = 0.2
   params:add {
-    type="control",id="lfo_frequency",name="LFO.Frequency",controlspec=lfo_frequency_spec,
+    type="control",id="lfo_frequency",name="LFO Rate",controlspec=lfo_frequency_spec,
     formatter=Formatters.round(0.001),
     action=function(value) engine.set("LFO.Frequency", value) end
   }
 
   -- Env > Filter.FM
-  local lfo_to_filter_fm_spec = R.specs.LinMixer.In2:copy()
-  lfo_to_filter_fm_spec.default = 0.3
-  params:add {
-    type="control",id="env_to_filter_fm",name="Env > Filter.FM",controlspec=lfo_to_filter_fm_spec,
-    formatter=Formatters.percentage,
-    action=function(value) engine.set("FilterMod.In2", value) end
-  }
+--  local lfo_to_filter_fm_spec = R.specs.LinMixer.In2:copy()
+--  lfo_to_filter_fm_spec.default = 0
+--  params:add {
+--    type="control",id="env_to_filter_fm",name="Env > Filter.FM",controlspec=lfo_to_filter_fm_spec,
+--    formatter=Formatters.percentage,
+--    action=function(value) engine.set("FilterMod.In2", value) end
+--  }
 
+  engine.set("FilterL.FM", 1)
+  engine.set("FilterR.FM", 1)
   engine.set("FilterMod.Out", 1)
-  engine.set("Filter.FM", 1)
+  --engine.set("LFO.Reset", 1)
   engine.set("Env.Gate", 1)
+  
   
   params:bang()
   

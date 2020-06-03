@@ -4,7 +4,7 @@
 
 __Gated audio sequencer for norns__
 
-Alpha v0.5.1 @okyeron
+v0.5.6 @okyeron
 
 Send audio in, each step gates the audio.
 
@@ -28,7 +28,9 @@ K1 HOLD + E1 : change seq length
 E2 : change edit step  
 E3 : change filter amt per step  
 
-See Params menu for envelope values, filter envelopes, delays, etc. (LFO is non functional right now)  
+See Params menu for clock divider, envelope values, filter envelopes, delays, etc.  (and Mapping those to MIDI)
+
+MIDI Start/Stop/Continue are supported
 
 Sequence length is 1 to 32.  
 
