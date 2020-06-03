@@ -6,7 +6,7 @@
 --        ||||       ||||   
 --        ||||       ||||   ( gates )
 --
--- v0.5.6 @okyeron
+-- v0.5.7 @okyeron
 --
 -- |||||||||||||||||||||||||||||
 -- 
@@ -98,18 +98,6 @@ clk_midi.event = function(data)
   
   if d.type == "cc" then
     print("ch:".. d.ch .. " " .. d.type .. ":".. d.cc.. " ".. d.val)
-    if d.cc == 1 then
-      if d.val > 64 then
-        bypass = true
-      else
-        bypass = false
-      end
-    end
-    if d.cc == 2 then
-      if d.val > 64 then
-        randomize()
-      end
-    end
   end
 end
 
@@ -192,14 +180,11 @@ function init()
   get_grid_names()
   
   for i=1,seq_length do
-    --sliders[i] = 0
     sequence[i] = {['on']=0, ['lev']=0} 
     if i % 2 ~= 0 then
       if i+math.random(1,seq_length) <= i+math.random(1,seq_length) then 
-        --sliders[i] = 0
         sequence[i].on = 0
       else 
-        --sliders[i] = math.random(1,100)
         sequence[i].on = 1
         sequence[i].lev = math.random(1,100)
       end
@@ -612,7 +597,7 @@ function grid_key(x, y, z)
       sequence[x+offset].lev = math.floor(100 - (y-1)*16)
     end
   end
-  print(sequence[x+offset].lev)
+  --print(sequence[x+offset].lev)
 
   if y == 8 and z == 1 then -- bottom row turns on/off gates
     if sequence[x+offset].on > 0 then
@@ -631,15 +616,15 @@ end
 
 function gridfrompattern()
   for i=0, grid_w-1 do -- 16 steps available on grid
-      --print ("edit",edit)
-      --print ("step",step)
-      if edit > grid_w then offset = grid_w else offset = edit end
-
-      -- show level for each step
       
-      --if sliders[i+1+offset] > 0 then
+      if edit > grid_w then 
+        offset = grid_w 
+      else 
+        offset = edit 
+      end
+      
+      -- show level for each step
       if sequence[i+1+offset].lev > 0 then  
-        --pos = math.floor(math.abs((100 - sliders[i+1+offset])/16 +1))
         pos = math.floor(math.abs((100 - sequence[i+1+offset].lev)/grid_w +1))
         if sequence[i+1+offset].on == 1 then
           ledlev = ledlevels[3]
@@ -652,18 +637,17 @@ function gridfrompattern()
           end
         end
       end
-
-      if i+edit == step then
-        grid_device:led(i+1, 8, ledlevels[6])
-      --elseif sliders[i+1+offset] > 0 then
+      --print ("offset",offset)
+      --print ("edit",edit)
+      if i+offset == step then
+        grid_device:led(i+1, 8, ledlevels[4]) -- playhead
       elseif sequence[i+1+offset].on == 1 then
-        grid_device:led(i+1, 8, ledlevels[5])
-      elseif i == edit then
-        grid_device:led(i+1, 8, ledlevels[3])
+        grid_device:led(i+1, 8, ledlevels[6]) -- step indicator
+      elseif i+offset == edit then
+        grid_device:led(i+1, 8, ledlevels[2]) -- cursor
       else
         grid_device:led(i+1, 8, 0)
-      end
-      
+      end     
   end
 end
 
