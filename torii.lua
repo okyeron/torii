@@ -61,6 +61,7 @@ local running = true
 local ledlevels = {1,3,5,7,10,15} 
 -- local ledlevels = {15,15,15,15,15,15} -- use this for monobright grids.
 
+local grid = util.file_exists(_path.code.."midigrid") and include "midigrid/lib/mg_128" or grid
 local grds = {}
 local grid_device
 local grid_w = 0
